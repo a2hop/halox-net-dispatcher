@@ -96,6 +96,7 @@ jobs:
       - name: Get latest release
         id: latest_release
         uses: actions/github-script@v6
+        continue-on-error: true
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -105,15 +106,19 @@ jobs:
             });
             
             if (releases.length === 0) {
-              return core.setFailed('No releases found');
+              core.setOutput('has_release', 'false');
+              console.log('No releases found - skipping release upload');
+              return;
             }
             
             const latestRelease = releases[0];
+            core.setOutput('has_release', 'true');
             core.setOutput('release_id', latestRelease.id);
             core.setOutput('release_tag', latestRelease.tag_name);
 
       - name: Check if assets exist
         id: check_assets
+        if: steps.latest_release.outputs.has_release == 'true'
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -141,9 +146,9 @@ jobs:
               core.setOutput('deb_exists', 'true');
             } else {
               core.setOutput('deb_exists', 'false');
-            }
 
       - name: Delete existing assets if they exist
+        if: steps.latest_release.outputs.has_release == 'true'
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -170,6 +175,7 @@ jobs:
             }
 
       - name: Upload assets to release
+        if: steps.latest_release.outputs.has_release == 'true'
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -196,3 +202,13 @@ jobs:
               name: 'halox-net-dispatcher.deb',
               data: debData
             });
+
+      - name: Upload artifacts (no release)
+        if: steps.latest_release.outputs.has_release == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: halox-net-dispatcher-build
+          path: |
+            halox-net-dispatcher
+            halox-net-dispatcher.deb
+          retention-days: 30
