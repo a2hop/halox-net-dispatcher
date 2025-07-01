@@ -657,12 +657,18 @@ func (d *Dispatcher) run(ctx context.Context, runStartupTriggers bool) error {
 		d.errorf("Socket server start failed: %v", err)
 		return fmt.Errorf("failed to start socket server: %v", err)
 	}
-	defer func() {
+
+	// Set up cleanup function
+	cleanup := func() {
 		d.logf("Stopping socket server...")
 		if err := d.socketServer.Stop(); err != nil {
 			d.errorf("Socket server stop failed: %v", err)
+		} else {
+			d.logf("Socket server stopped successfully")
 		}
-	}()
+	}
+	defer cleanup()
+
 	d.logf("Socket server started successfully")
 
 	if err := d.scanInterfaces(); err != nil {
@@ -693,6 +699,7 @@ func (d *Dispatcher) run(ctx context.Context, runStartupTriggers bool) error {
 		case signal := <-signals:
 			d.handleDBusSignal(signal)
 		case <-ctx.Done():
+			d.logf("Shutdown requested")
 			return ctx.Err()
 		}
 	}

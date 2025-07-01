@@ -1,6 +1,7 @@
 package socket
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -47,16 +48,22 @@ type SocketServer struct {
 	clients    map[net.Conn]bool
 	clientsMux sync.RWMutex
 	verbose    bool
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
 }
 
 func NewSocketServer(socketPath string, verbose bool) *SocketServer {
 	if socketPath == "" {
 		socketPath = DefaultSocketPath
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	return &SocketServer{
 		socketPath: socketPath,
 		clients:    make(map[net.Conn]bool),
 		verbose:    verbose,
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 }
 
@@ -108,54 +115,85 @@ func (s *SocketServer) Start() error {
 	s.logf("Socket server started on %s", s.socketPath)
 
 	// Accept connections
+	s.wg.Add(1)
 	go s.acceptConnections()
 
 	return nil
 }
 
 func (s *SocketServer) Stop() error {
+	s.logf("Stopping socket server...")
+
+	// Cancel context to signal shutdown
+	s.cancel()
+
 	if s.listener != nil {
-		s.clientsMux.Lock()
-		// Close all client connections
-		for client := range s.clients {
-			client.Close()
-		}
-		s.clients = make(map[net.Conn]bool)
-		s.clientsMux.Unlock()
-
-		// Close listener
+		// Close listener first to stop accepting new connections
 		if err := s.listener.Close(); err != nil {
-			return err
-		}
-
-		// Remove socket file
-		if err := os.Remove(s.socketPath); err != nil && !os.IsNotExist(err) {
-			return err
+			s.logf("Error closing listener: %v", err)
 		}
 	}
+
+	// Close all client connections
+	s.clientsMux.Lock()
+	for client := range s.clients {
+		client.Close()
+	}
+	s.clients = make(map[net.Conn]bool)
+	s.clientsMux.Unlock()
+
+	// Wait for acceptConnections goroutine to finish
+	s.wg.Wait()
+
+	// Remove socket file
+	if err := os.Remove(s.socketPath); err != nil && !os.IsNotExist(err) {
+		s.logf("Error removing socket file: %v", err)
+		return err
+	}
+
+	s.logf("Socket server stopped")
 	return nil
 }
 
 func (s *SocketServer) acceptConnections() {
+	defer s.wg.Done()
+
 	for {
+		select {
+		case <-s.ctx.Done():
+			s.logf("Accept connections goroutine shutting down")
+			return
+		default:
+		}
+
 		conn, err := s.listener.Accept()
 		if err != nil {
-			s.errorf("Failed to accept connection: %v", err)
-			return
+			select {
+			case <-s.ctx.Done():
+				// Shutdown was requested, this is expected
+				s.logf("Socket listener closed during shutdown")
+				return
+			default:
+				s.errorf("Failed to accept connection: %v", err)
+				return
+			}
 		}
 
 		s.clientsMux.Lock()
 		s.clients[conn] = true
+		clientCount := len(s.clients)
 		s.clientsMux.Unlock()
 
-		s.logf("New client connected. Total clients: %d", len(s.clients))
+		s.logf("New client connected. Total clients: %d", clientCount)
 
 		// Handle client disconnection
+		s.wg.Add(1)
 		go s.handleClient(conn)
 	}
 }
 
 func (s *SocketServer) handleClient(conn net.Conn) {
+	defer s.wg.Done()
 	defer func() {
 		s.clientsMux.Lock()
 		delete(s.clients, conn)
@@ -169,6 +207,13 @@ func (s *SocketServer) handleClient(conn net.Conn) {
 	// Keep connection alive and detect disconnection
 	buf := make([]byte, 1)
 	for {
+		select {
+		case <-s.ctx.Done():
+			s.logf("Client handler shutting down")
+			return
+		default:
+		}
+
 		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 		_, err := conn.Read(buf)
 		if err != nil {
