@@ -20,34 +20,34 @@ go build -o halox-net-dispatcher .
 
 # Install binary and service file
 sudo cp halox-net-dispatcher /usr/local/bin/
-sudo cp networkd-dispatcher.service /etc/systemd/system/
+sudo cp halox-net-dispatcher.service /etc/systemd/system/
 
 # Create script directories
-sudo mkdir -p /etc/networkd-dispatcher /usr/lib/networkd-dispatcher
+sudo mkdir -p /etc/halox-net-dispatcher /usr/lib/halox-net-dispatcher
 
 # Enable and start the service
 sudo systemctl daemon-reload
-sudo systemctl enable networkd-dispatcher
-sudo systemctl start networkd-dispatcher
+sudo systemctl enable halox-net-dispatcher
+sudo systemctl start halox-net-dispatcher
 ```
 
 ### Service Management
 
 ```bash
 # Check service status
-sudo systemctl status networkd-dispatcher
+sudo systemctl status halox-net-dispatcher
 
 # View logs
-sudo journalctl -u networkd-dispatcher -f
+sudo journalctl -u halox-net-dispatcher -f
 
 # Restart service
-sudo systemctl restart networkd-dispatcher
+sudo systemctl restart halox-net-dispatcher
 
 # Stop service
-sudo systemctl stop networkd-dispatcher
+sudo systemctl stop halox-net-dispatcher
 
 # Disable service
-sudo systemctl disable networkd-dispatcher
+sudo systemctl disable halox-net-dispatcher
 ```
 
 ## Usage
@@ -60,7 +60,7 @@ sudo systemctl disable networkd-dispatcher
 
 ### Options
 
-- `-S`: Script directory (default: /etc/networkd-dispatcher:/usr/lib/networkd-dispatcher)
+- `-S`: Script directory (default: /etc/halox-net-dispatcher:/usr/lib/halox-net-dispatcher)
 - `-T`: Run startup triggers for existing interfaces
 - `-v`: Verbose logging
 - `-q`: Quiet mode
@@ -77,7 +77,7 @@ sudo systemctl disable networkd-dispatcher
 
 ## Socket Broadcasting
 
-The dispatcher creates a Unix domain socket at `/var/run/networkd-dispatcher.sock` that broadcasts network events to multiple connected clients. This allows other processes to consume network state changes in real-time.
+The dispatcher creates a Unix domain socket at `/var/run/halox-net-dispatcher.sock` that broadcasts network events to multiple connected clients. This allows other processes to consume network state changes in real-time.
 
 ### Event Types
 
@@ -112,16 +112,16 @@ Events are broadcast as JSON objects, one per line:
 ./client-example
 
 # Or connect with netcat
-nc -U /var/run/networkd-dispatcher.sock
+nc -U /var/run/halox-net-dispatcher.sock
 
 # Or use socat
-socat UNIX-CONNECT:/var/run/networkd-dispatcher.sock -
+socat UNIX-CONNECT:/var/run/halox-net-dispatcher.sock -
 ```
 
 ### Programmatic Usage
 
 ```go
-conn, err := net.Dial("unix", "/var/run/networkd-dispatcher.sock")
+conn, err := net.Dial("unix", "/var/run/halox-net-dispatcher.sock")
 if err != nil {
     log.Fatal(err)
 }
