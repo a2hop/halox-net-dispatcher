@@ -30,8 +30,17 @@ jobs:
             VERSION=${GITHUB_REF#refs/tags/v}
             VERSION=${VERSION#refs/tags/}  # Also handle tags without 'v' prefix
           else
-            # For non-tagged builds, use default version
-            VERSION="1.0.0"
+            # For non-tagged builds, get latest release version
+            LATEST_RELEASE=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r '.tag_name // empty')
+            if [ -n "$LATEST_RELEASE" ]; then
+              # Remove 'v' prefix if present and use latest release version
+              VERSION=${LATEST_RELEASE#v}
+              echo "Using latest release version: $VERSION"
+            else
+              # Only use 1.0.0 if no releases exist at all
+              VERSION="1.0.0"
+              echo "No releases found, using default version: $VERSION"
+            fi
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "deb_filename=halox-net-dispatcher-${VERSION}_amd64.deb" >> $GITHUB_OUTPUT
