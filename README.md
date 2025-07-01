@@ -12,6 +12,24 @@ go build -o client-example ./client/client-example.go  # Optional: build example
 
 ## Installation
 
+### Debian Package Installation
+
+Download the latest .deb package from the [releases page](https://github.com/yourusername/halox-net-dispatcher/releases) and install:
+
+```bash
+# Download the latest release (replace X.X.X with actual version)
+wget https://github.com/yourusername/halox-net-dispatcher/releases/download/vX.X.X/halox-net-dispatcher-X.X.X_amd64.deb
+
+# Install the package
+sudo dpkg -i halox-net-dispatcher-X.X.X_amd64.deb
+
+# If there are dependency issues, fix them with:
+sudo apt-get install -f
+
+# Start the service
+sudo systemctl start halox-net-dispatcher
+```
+
 ### Manual Installation
 
 ```bash

@@ -28,10 +28,12 @@ jobs:
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
           else
-            VERSION="0.0.1"
+            # Use commit hash for non-tag builds
+            VERSION="0.0.1-$(git rev-parse --short HEAD)"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "deb_filename=halox-net-dispatcher-${VERSION}_amd64.deb" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
 
       - name: Build binary
         run: go build -v -o halox-net-dispatcher .
