@@ -68,35 +68,42 @@ func runClient(socketPath string) error {
 	printTableHeader()
 
 	// Handle graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		<-sigChan
-		fmt.Println("\nReceived interrupt signal, closing connection...")
-		conn.Close()
-		os.Exit(0)
+		fmt.Println("\nReceived interrupt signal, shutting down...")
+		cancel()
 	}()
 
 	// Read events from socket
 	scanner := bufio.NewScanner(conn)
-	for scanner.Scan() {
-		line := scanner.Text()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			if !scanner.Scan() {
+				if err := scanner.Err(); err != nil {
+					return fmt.Errorf("error reading from socket: %v", err)
+				}
+				return nil // EOF
+			}
 
-		var event socket.NetworkEvent
-		if err := json.Unmarshal([]byte(line), &event); err != nil {
-			log.Printf("Failed to parse event: %v", err)
-			continue
+			line := scanner.Text()
+			var event socket.NetworkEvent
+			if err := json.Unmarshal([]byte(line), &event); err != nil {
+				log.Printf("Failed to parse event: %v", err)
+				continue
+			}
+
+			printTableRow(event)
 		}
-
-		printTableRow(event)
 	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading from socket: %v", err)
-	}
-
-	return nil
 }
 
 func main() {
