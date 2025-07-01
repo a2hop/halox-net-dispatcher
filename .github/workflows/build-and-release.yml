@@ -146,6 +146,7 @@ jobs:
               core.setOutput('deb_exists', 'true');
             } else {
               core.setOutput('deb_exists', 'false');
+            }
 
       - name: Delete existing assets if they exist
         if: steps.latest_release.outputs.has_release == 'true'
