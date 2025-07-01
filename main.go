@@ -18,10 +18,10 @@ import (
 )
 
 func printTableHeader() {
-	fmt.Println(strings.Repeat("-", 120))
-	fmt.Printf("%-20s %-15s %-8s %-12s %-15s %-15s %-20s\n",
+	fmt.Println(strings.Repeat("-", 140))
+	fmt.Printf("%-8s %-25s %-8s %-5s %-15s %-15s %-30s\n",
 		"TIME", "EVENT", "IFACE", "INDEX", "OPER_STATE", "ADMIN_STATE", "DETAILS")
-	fmt.Println(strings.Repeat("-", 120))
+	fmt.Println(strings.Repeat("-", 140))
 }
 
 func printTableRow(event socket.NetworkEvent) {
@@ -45,7 +45,7 @@ func printTableRow(event socket.NetworkEvent) {
 		}
 	}
 
-	fmt.Printf("%-20s %-15s %-8s %-12d %-15s %-15s %-20s\n",
+	fmt.Printf("%-8s %-25s %-8s %-5d %-15s %-15s %-30s\n",
 		timeStr, event.Type, event.InterfaceName, event.InterfaceIndex,
 		event.OperationalState, event.AdministrativeState, details)
 }

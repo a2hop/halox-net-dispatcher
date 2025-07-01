@@ -82,14 +82,30 @@ jobs:
           #!/bin/bash
           set -e
           
+          # Check if this is an upgrade and if service was running
+          WAS_RUNNING=false
+          if [ "$1" = "configure" ] && [ -n "$2" ]; then
+              # This is an upgrade ($2 contains the old version)
+              if systemctl is-active --quiet halox-net-dispatcher 2>/dev/null; then
+                  WAS_RUNNING=true
+              fi
+          fi
+          
           # Reload systemd daemon
           systemctl daemon-reload
           
-          # Enable service but don't start it automatically
+          # Enable service
           systemctl enable halox-net-dispatcher || true
           
-          echo "HaloX Network Dispatcher installed successfully."
-          echo "To start the service, run: sudo systemctl start halox-net-dispatcher"
+          # Start or restart service based on context
+          if [ "$WAS_RUNNING" = "true" ]; then
+              echo "Restarting HaloX Network Dispatcher service..."
+              systemctl restart halox-net-dispatcher || true
+          elif [ "$1" = "configure" ] && [ -z "$2" ]; then
+              # Fresh installation - don't start automatically
+              echo "HaloX Network Dispatcher installed successfully."
+              echo "To start the service, run: sudo systemctl start halox-net-dispatcher"
+          fi
           EOF
           chmod +x debian-package/DEBIAN/postinst
           
@@ -98,9 +114,11 @@ jobs:
           #!/bin/bash
           set -e
           
-          # Stop and disable service
-          systemctl stop halox-net-dispatcher || true
-          systemctl disable halox-net-dispatcher || true
+          # Only stop service on removal, not on upgrade
+          if [ "$1" = "remove" ]; then
+              systemctl stop halox-net-dispatcher || true
+              systemctl disable halox-net-dispatcher || true
+          fi
           EOF
           chmod +x debian-package/DEBIAN/prerm
 
