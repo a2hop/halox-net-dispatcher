@@ -1,0 +1,198 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Build binary
+        run: go build -v -o halox-net-dispatcher .
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev fakeroot
+
+      - name: Create Debian package structure
+        run: |
+          mkdir -p debian-package/DEBIAN
+          mkdir -p debian-package/usr/local/bin
+          mkdir -p debian-package/etc/systemd/system
+          mkdir -p debian-package/etc/networkd-dispatcher
+          mkdir -p debian-package/usr/lib/networkd-dispatcher
+          
+          # Copy binary
+          cp halox-net-dispatcher debian-package/usr/local/bin/
+          chmod +x debian-package/usr/local/bin/halox-net-dispatcher
+          
+          # Copy systemd service file
+          cp networkd-dispatcher.service debian-package/etc/systemd/system/
+          
+          # Create control file
+          cat > debian-package/DEBIAN/control << EOF
+          Package: halox-net-dispatcher
+          Version: 1.0.0
+          Section: net
+          Priority: optional
+          Architecture: amd64
+          Maintainer: HaloX Team <team@halox.io>
+          Description: HaloX Network Dispatcher Service
+           A Go implementation of networkd-dispatcher that monitors systemd-networkd
+           for network state changes and executes scripts accordingly.
+           .
+           Features include D-Bus monitoring, script execution, socket broadcasting,
+           and systemd integration.
+          Depends: systemd, systemd-networkd
+          EOF
+          
+          # Create postinst script
+          cat > debian-package/DEBIAN/postinst << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          # Reload systemd daemon
+          systemctl daemon-reload
+          
+          # Enable service but don't start it automatically
+          systemctl enable halox-net-dispatcher || true
+          
+          echo "HaloX Network Dispatcher installed successfully."
+          echo "To start the service, run: sudo systemctl start networkd-dispatcher"
+          EOF
+          chmod +x debian-package/DEBIAN/postinst
+          
+          # Create prerm script
+          cat > debian-package/DEBIAN/prerm << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          # Stop and disable service
+          systemctl stop networkd-dispatcher || true
+          systemctl disable networkd-dispatcher || true
+          EOF
+          chmod +x debian-package/DEBIAN/prerm
+
+      - name: Build Debian package
+        run: |
+          fakeroot dpkg-deb --build debian-package halox-net-dispatcher.deb
+
+      - name: Get latest release
+        id: latest_release
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            
+            if (releases.length === 0) {
+              return core.setFailed('No releases found');
+            }
+            
+            const latestRelease = releases[0];
+            core.setOutput('release_id', latestRelease.id);
+            core.setOutput('release_tag', latestRelease.tag_name);
+
+      - name: Check if assets exist
+        id: check_assets
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const releaseId = ${{ steps.latest_release.outputs.release_id }};
+            
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId
+            });
+            
+            const binaryAsset = assets.find(asset => asset.name === 'halox-net-dispatcher');
+            const debAsset = assets.find(asset => asset.name === 'halox-net-dispatcher.deb');
+            
+            if (binaryAsset) {
+              core.setOutput('binary_asset_id', binaryAsset.id);
+              core.setOutput('binary_exists', 'true');
+            } else {
+              core.setOutput('binary_exists', 'false');
+            }
+            
+            if (debAsset) {
+              core.setOutput('deb_asset_id', debAsset.id);
+              core.setOutput('deb_exists', 'true');
+            } else {
+              core.setOutput('deb_exists', 'false');
+            }
+
+      - name: Delete existing assets if they exist
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const binaryExists = '${{ steps.check_assets.outputs.binary_exists }}' === 'true';
+            const debExists = '${{ steps.check_assets.outputs.deb_exists }}' === 'true';
+            
+            if (binaryExists) {
+              const binaryAssetId = ${{ steps.check_assets.outputs.binary_asset_id }};
+              await github.rest.repos.deleteReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: binaryAssetId
+              });
+            }
+            
+            if (debExists) {
+              const debAssetId = ${{ steps.check_assets.outputs.deb_asset_id }};
+              await github.rest.repos.deleteReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: debAssetId
+              });
+            }
+
+      - name: Upload assets to release
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const releaseId = ${{ steps.latest_release.outputs.release_id }};
+            
+            // Upload binary
+            const binaryData = fs.readFileSync('./halox-net-dispatcher');
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              name: 'halox-net-dispatcher',
+              data: binaryData
+            });
+            
+            // Upload Debian package
+            const debData = fs.readFileSync('./halox-net-dispatcher.deb');
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              name: 'halox-net-dispatcher.deb',
+              data: debData
+            });

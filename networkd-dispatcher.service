@@ -1,0 +1,35 @@
+[Unit]
+Description=HaloX Network Dispatcher Service
+Documentation=man:halox-net-dispatcher(8)
+After=systemd-networkd.service network.target
+Wants=systemd-networkd.service
+BindsTo=systemd-networkd.service
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/halox-net-dispatcher -T
+Restart=on-failure
+RestartSec=5
+User=root
+Group=root
+CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/run
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictSUIDSGID=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
