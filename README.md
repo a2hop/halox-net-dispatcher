@@ -7,7 +7,7 @@ A Go implementation of networkd-dispatcher, a service that monitors systemd-netw
 ```bash
 go mod tidy
 go build -o halox-net-dispatcher .
-go build -o client-example ./client/client-example.go  # Optional: build example client
+go build -o client-example ./client-example/client-example.go  # Optional: build example client
 ```
 
 ## Installation
@@ -73,15 +73,37 @@ sudo systemctl disable halox-net-dispatcher
 ### Command Line
 
 ```bash
+# Run as dispatcher service
 ./halox-net-dispatcher [options]
+
+# Run as client (listen mode)
+./halox-net-dispatcher listen [options]
 ```
 
-### Options
+### Dispatcher Options
 
 - `-S`: Script directory (default: /etc/halox-net-dispatcher:/usr/lib/halox-net-dispatcher)
 - `-T`: Run startup triggers for existing interfaces
 - `-v`: Verbose logging
 - `-q`: Quiet mode
+- `-socket`: Socket path (default: /var/run/networkd-dispatcher.sock)
+
+### Listen Mode Options
+
+- `-s`: Socket path to connect to (default: /var/run/networkd-dispatcher.sock)
+
+### Examples
+
+```bash
+# Start the dispatcher service
+sudo ./halox-net-dispatcher -v
+
+# Listen for network events (as client)
+./halox-net-dispatcher listen
+
+# Listen with custom socket path
+./halox-net-dispatcher listen -s /custom/path/dispatcher.sock
+```
 
 ## Features
 
@@ -126,7 +148,10 @@ Events are broadcast as JSON objects, one per line:
 ### Example Client Usage
 
 ```bash
-# Run the example client
+# Using built-in listen mode
+./halox-net-dispatcher listen
+
+# Run the standalone example client
 ./client-example
 
 # Or connect with netcat
