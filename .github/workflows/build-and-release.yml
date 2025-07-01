@@ -22,6 +22,17 @@ jobs:
         with:
           go-version: '1.24'
 
+      - name: Get version
+        id: version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION="0.0.1"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "deb_filename=halox-net-dispatcher-${VERSION}_amd64.deb" >> $GITHUB_OUTPUT
+
       - name: Build binary
         run: go build -v -o halox-net-dispatcher .
 
@@ -48,7 +59,7 @@ jobs:
           # Create control file
           cat > debian-package/DEBIAN/control << EOF
           Package: halox-net-dispatcher
-          Version: 1.0.0
+          Version: ${{ steps.version.outputs.version }}
           Section: net
           Priority: optional
           Architecture: amd64
@@ -91,7 +102,7 @@ jobs:
 
       - name: Build Debian package
         run: |
-          fakeroot dpkg-deb --build debian-package halox-net-dispatcher.deb
+          fakeroot dpkg-deb --build debian-package ${{ steps.version.outputs.deb_filename }}
 
       - name: Get latest release
         id: latest_release
@@ -132,7 +143,7 @@ jobs:
             });
             
             const binaryAsset = assets.find(asset => asset.name === 'halox-net-dispatcher');
-            const debAsset = assets.find(asset => asset.name === 'halox-net-dispatcher.deb');
+            const debAsset = assets.find(asset => asset.name === '${{ steps.version.outputs.deb_filename }}');
             
             if (binaryAsset) {
               core.setOutput('binary_asset_id', binaryAsset.id);
@@ -195,12 +206,12 @@ jobs:
             });
             
             // Upload Debian package
-            const debData = fs.readFileSync('./halox-net-dispatcher.deb');
+            const debData = fs.readFileSync('./${{ steps.version.outputs.deb_filename }}');
             await github.rest.repos.uploadReleaseAsset({
               owner: context.repo.owner,
               repo: context.repo.repo,
               release_id: parseInt(releaseId),
-              name: 'halox-net-dispatcher.deb',
+              name: '${{ steps.version.outputs.deb_filename }}',
               data: debData
             });
 
@@ -211,5 +222,5 @@ jobs:
           name: halox-net-dispatcher-build
           path: |
             halox-net-dispatcher
-            halox-net-dispatcher.deb
+            ${{ steps.version.outputs.deb_filename }}
           retention-days: 30
