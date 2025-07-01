@@ -158,20 +158,20 @@ jobs:
             const debExists = '${{ steps.check_assets.outputs.deb_exists }}' === 'true';
             
             if (binaryExists) {
-              const binaryAssetId = ${{ steps.check_assets.outputs.binary_asset_id }};
+              const binaryAssetId = '${{ steps.check_assets.outputs.binary_asset_id }}';
               await github.rest.repos.deleteReleaseAsset({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                asset_id: binaryAssetId
+                asset_id: parseInt(binaryAssetId)
               });
             }
             
             if (debExists) {
-              const debAssetId = ${{ steps.check_assets.outputs.deb_asset_id }};
+              const debAssetId = '${{ steps.check_assets.outputs.deb_asset_id }}';
               await github.rest.repos.deleteReleaseAsset({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                asset_id: debAssetId
+                asset_id: parseInt(debAssetId)
               });
             }
 
@@ -182,14 +182,14 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
-            const releaseId = ${{ steps.latest_release.outputs.release_id }};
+            const releaseId = '${{ steps.latest_release.outputs.release_id }}';
             
             // Upload binary
             const binaryData = fs.readFileSync('./halox-net-dispatcher');
             await github.rest.repos.uploadReleaseAsset({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              release_id: releaseId,
+              release_id: parseInt(releaseId),
               name: 'halox-net-dispatcher',
               data: binaryData
             });
@@ -199,7 +199,7 @@ jobs:
             await github.rest.repos.uploadReleaseAsset({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              release_id: releaseId,
+              release_id: parseInt(releaseId),
               name: 'halox-net-dispatcher.deb',
               data: debData
             });
